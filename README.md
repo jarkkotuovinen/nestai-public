@@ -1,5 +1,7 @@
 # Tactical Map Dashboard
 
+![NestAI](nestai.png)
+
 > Real-time drone fleet visualization with micro-frontend architecture and 30 Hz WebSocket streaming
 
 [![Live Demo](https://img.shields.io/badge/demo-live-success)](https://d3lnt5s5ggl9sc.cloudfront.net/)
