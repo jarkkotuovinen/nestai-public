@@ -1,0 +1,38 @@
+{
+  "buildCommand": "cd ../.. && pnpm turbo run build --filter=@apps/controls-remote",
+  "outputDirectory": "dist",
+  "installCommand": "cd ../.. && npm install -g pnpm@9.0.0 && pnpm install --frozen-lockfile",
+  "framework": "vite",
+  "headers": [
+    {
+      "source": "/assets/remoteEntry.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=300"
+        },
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
+        {
+          "key": "Access-Control-Allow-Methods",
+          "value": "GET, OPTIONS"
+        }
+      ]
+    },
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        },
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "buildCommand": "cd ../.. && pnpm turbo run build --filter=@apps/shell",
+  "outputDirectory": "dist",
+  "installCommand": "cd ../.. && npm install -g pnpm@9.0.0 && pnpm install --frozen-lockfile",
+  "framework": "vite"
+}

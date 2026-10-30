@@ -1,0 +1,23 @@
+import { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+import MapWidget from './MapWidget';
+import type { HostAPI } from '@packages/contracts';
+
+// Mock HostAPI for standalone development
+const mockHostAPI: HostAPI = {
+  eventBus: {
+    subscribe: () => () => {},
+    publish: () => {},
+  },
+  getDroneData: () => new Map(),
+  reportError: (remote, error) => console.error(`[${remote}]`, error),
+  reportMetric: (name, value) => console.log(`Metric: ${name} = ${value}`),
+};
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <div style={{ width: '100vw', height: '100vh' }}>
+      <MapWidget hostAPI={mockHostAPI} />
+    </div>
+  </StrictMode>
+);

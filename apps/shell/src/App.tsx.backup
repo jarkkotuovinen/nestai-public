@@ -1,0 +1,213 @@
+import { useEffect, useRef, useState, lazy, Suspense } from 'react';
+import { ErrorBoundary } from './ErrorBoundary';
+import type { HostAPI, DroneData } from '@packages/contracts';
+
+// Lazy load remotes with @vite-ignore to suppress warnings
+const MapWidget = lazy(() => import(/* @vite-ignore */ 'mapRemote/MapWidget'));
+const PerfMonitor = lazy(() => import(/* @vite-ignore */ 'perfRemote/PerfMonitor'));
+const Controls = lazy(() => import(/* @vite-ignore */ 'controlsRemote/Controls'));
+
+export function App() {
+  const [drones, setDrones] = useState<Map<string, DroneData>>(new Map());
+  const [isConnected, setIsConnected] = useState(false);
+  const eventBusRef = useRef(new EventTarget());
+  const workerRef = useRef<Worker | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+
+  // Create host API that's injected into all remotes
+  const hostAPI: HostAPI = {
+    eventBus: {
+      subscribe: (event, handler) => {
+        const listener = ((e: CustomEvent) => handler(e.detail)) as EventListener;
+        eventBusRef.current.addEventListener(event, listener);
+        return () => eventBusRef.current.removeEventListener(event, listener);
+      },
+      publish: (event, data) => {
+        eventBusRef.current.dispatchEvent(new CustomEvent(event, { detail: data }));
+      },
+    },
+    getDroneData: () => drones,
+    reportError: (remote, error) => {
+      console.error(`[${remote}]`, error);
+      // In production: send to Sentry/DataDog
+    },
+    reportMetric: (name, value) => {
+      console.log(`📊 Metric: ${name} = ${value}`);
+      // In production: send to monitoring
+    },
+  };
+
+  // WebSocket connection and Web Worker setup
+  useEffect(() => {
+    // Create Web Worker for data processing
+    workerRef.current = new Worker(new URL('./worker/drone-processor.worker.ts', import.meta.url), {
+      type: 'module',
+    });
+
+    const ws = new WebSocket('ws://localhost:8080');
+    ws.binaryType = 'arraybuffer';
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      setIsConnected(true);
+      console.log('✅ Connected to WebSocket server');
+      hostAPI.eventBus.publish('connection:status', {
+        type: 'connection:status',
+        payload: { connected: true },
+      });
+    };
+
+    ws.onmessage = (event) => {
+      // Offload parsing to Web Worker
+      workerRef.current?.postMessage(event.data);
+    };
+
+    ws.onerror = (error) => {
+      console.error('❌ WebSocket error:', error);
+      setIsConnected(false);
+      hostAPI.eventBus.publish('connection:status', {
+        type: 'connection:status',
+        payload: { connected: false, message: 'WebSocket error' },
+      });
+    };
+
+    ws.onclose = () => {
+      console.log('🔌 Disconnected from WebSocket server');
+      setIsConnected(false);
+      hostAPI.eventBus.publish('connection:status', {
+        type: 'connection:status',
+        payload: { connected: false, message: 'Connection closed' },
+      });
+    };
+
+    // Worker message handler
+    workerRef.current.onmessage = (event) => {
+      const updatedDrones = new Map(event.data) as Map<string, DroneData>;
+      setDrones(updatedDrones);
+
+      // Broadcast to all remotes via event bus
+      hostAPI.eventBus.publish('drone:update', {
+        type: 'drone:update',
+        payload: {
+          drones: updatedDrones,
+          timestamp: Date.now(),
+        },
+      });
+    };
+
+    // Listen for drone count config changes from controls
+    const unsubscribeConfig = hostAPI.eventBus.subscribe(
+      'config:droneCount',
+      (event: any) => {
+        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+          const message = JSON.stringify({ type: 'config', droneCount: event.payload.count });
+          wsRef.current.send(message);
+        }
+      }
+    );
+
+    return () => {
+      unsubscribeConfig();
+      ws.close();
+      workerRef.current?.terminate();
+    };
+  }, []);
+
+  return (
+    <div style={{ width: '100vw', height: '100vh', position: 'relative', overflow: 'hidden', backgroundColor: '#111827' }}>
+      {/* Connection status banner */}
+      {!isConnected && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            backgroundColor: '#ef4444',
+            color: 'white',
+            padding: '8px',
+            textAlign: 'center',
+            fontSize: '14px',
+            fontWeight: 'bold',
+            zIndex: 9999,
+          }}
+        >
+          ⚠️ Disconnected from data source
+        </div>
+      )}
+
+      {/* Map Remote - full screen */}
+      <ErrorBoundary fallback={<MapFallback />} onError={(error) => hostAPI.reportError('shell', error)}>
+        <Suspense fallback={<LoadingFallback message="Loading map..." />}>
+          <MapWidget hostAPI={hostAPI} />
+        </Suspense>
+      </ErrorBoundary>
+
+      {/* Performance Monitor - overlay (top-right) */}
+      <ErrorBoundary>
+        <Suspense fallback={null}>
+          <PerfMonitor hostAPI={hostAPI} />
+        </Suspense>
+      </ErrorBoundary>
+
+      {/* Controls - overlay (bottom-left) */}
+      <ErrorBoundary>
+        <Suspense fallback={null}>
+          <Controls hostAPI={hostAPI} />
+        </Suspense>
+      </ErrorBoundary>
+    </div>
+  );
+}
+
+// Loading fallback
+function LoadingFallback({ message }: { message: string }) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100vh',
+        backgroundColor: '#111827',
+        color: 'white',
+      }}
+    >
+      <div style={{ textAlign: 'center' }}>
+        <div
+          style={{
+            width: '50px',
+            height: '50px',
+            border: '3px solid rgba(255,255,255,0.1)',
+            borderTop: '3px solid white',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite',
+            margin: '0 auto 16px',
+          }}
+        />
+        <p style={{ color: '#9ca3af' }}>{message}</p>
+      </div>
+    </div>
+  );
+}
+
+// Fallback for critical map component
+function MapFallback() {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100vh',
+        backgroundColor: '#111827',
+        color: 'white',
+      }}
+    >
+      <div style={{ textAlign: 'center' }}>
+        <h2 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '8px' }}>Map Unavailable</h2>
+        <p style={{ color: '#9ca3af' }}>Running in degraded mode</p>
+      </div>
+    </div>
+  );
+}

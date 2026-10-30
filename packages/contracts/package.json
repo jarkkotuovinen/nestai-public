@@ -1,0 +1,33 @@
+{
+  "name": "@packages/contracts",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./drone-types": {
+      "import": "./dist/drone-types.js",
+      "types": "./dist/drone-types.d.ts"
+    },
+    "./host-api": {
+      "import": "./dist/host-api.js",
+      "types": "./dist/host-api.d.ts"
+    },
+    "./events": {
+      "import": "./dist/events.js",
+      "types": "./dist/events.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "name": "websocket-handler",
+  "version": "1.0.0",
+  "description": "WebSocket Lambda handler for drone data streaming",
+  "main": "websocket-handler.js",
+  "dependencies": {
+    "@aws-sdk/client-apigatewaymanagementapi": "^3.709.0"
+  }
+}
