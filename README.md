@@ -204,6 +204,32 @@ The application is deployed on AWS with the following architecture:
 - **Binary Protocol**: Custom 32-byte format (Float32 coordinates)
 - **Auto-scaling**: Ready for load balancer + multiple EC2 instances
 
+### Connecting to the WebSocket Server
+
+The production deployment uses a self-signed SSL certificate for the WebSocket server. To connect to the live demo:
+
+1. **Accept the certificate**: Visit https://16.192.137.161 in your browser and accept the self-signed certificate warning
+2. **Reload the app**: Return to https://d3lnt5s5ggl9sc.cloudfront.net/ and refresh the page
+3. **Verify connection**: The red "Disconnected from data source" banner should disappear
+
+**For local development**, create `apps/shell/.env`:
+
+```bash
+# Local WebSocket simulator
+VITE_WS_URL=ws://localhost:8080
+
+# Or connect to production EC2 server
+# VITE_WS_URL=wss://16.192.137.161
+```
+
+Then rebuild and redeploy:
+
+```bash
+pnpm build
+cd infrastructure
+./deploy.sh
+```
+
 See [DEPLOYMENT.md](./DEPLOYMENT.md) for complete deployment guide.
 
 ## Design Decisions
